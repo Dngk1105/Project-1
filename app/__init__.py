@@ -16,21 +16,4 @@ login = LoginManager(app)
 login.login_view = 'entername'
 login.login_message = "Nhập tên trước khi vào bạn nhé!"
 
-
-# def cleanup_old_games():
-#     from app.models import Game
-#     expired = db.session.scalars(
-#         sa.select(Game).where(
-#             Game.status == "pending",
-#             Game.timestamp < datetime.utcnow() - timedelta(hours=2)
-#         )
-#     ).all()
-#     for g in expired:
-#         db.session.delete(g)
-#     db.session.commit()
-#     print(f" Dọn {len(expired)} game quá hạn")
-
-# with app.app_context():
-#     cleanup_old_games()
-
 from app import routes, models, socket_events
