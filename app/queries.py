@@ -2,6 +2,7 @@ from app import db
 from app.models import Player, AI, Game, ShipPlacement
 import sqlalchemy as sa
 import numpy
+import time
 
 def overall():
     ''' Tổng quan toàn bộ game đấu '''
@@ -56,9 +57,24 @@ def overall():
         "human_win_rate_vs_ai": round(human_win_rate_vs_ai, 2),
         "avg_total_shots": round(avg_total_shots, 2)
     }
+
+
+# Cache trong RAM => Nhằm hạn chế truy vấn bảng này quá nhiều lần 
+_cached_matrix = None
+_last_update_time = 0
+def overall_probability_matrix(force_update = False):
+    '''
+    Phổ xác xuất của tất cả người chơi
+    Dùng cache trong RAM để tránh truy vấn lại mỗi lượt bắn.
+    '''
     
-def overall_probability_matrix():
-    '''Phổ xác xuất của tất cả người chơi'''
+    global _cached_matrix, _last_update_time
+    now = time.time()
+    # Chỉ tính lại nếu quá 30 giây hoặc ép cập nhật
+    if not force_update and _cached_matrix is not None and (now - _last_update_time < 60):
+        return _cached_matrix
+    
+    
     players = db.session.scalars(
         sa.select(Player)
     ).all()
@@ -77,6 +93,9 @@ def overall_probability_matrix():
             count += 1
     
     if count == 0:
-        return None
+        _cached_matrix = None
+    else: 
+        _cached_matrix = (matrix_sum / count).tolist()
     
-    return (matrix_sum / count).tolist()
+    _last_update_time = now
+    return _cached_matrix
