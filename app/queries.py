@@ -58,6 +58,7 @@ def overall():
     }
     
 def overall_probability_matrix():
+    '''Phổ xác xuất của tất cả người chơi'''
     players = db.session.scalars(
         sa.select(Player)
     ).all()
