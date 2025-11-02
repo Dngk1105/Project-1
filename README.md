@@ -14,7 +14,11 @@ kill <PID> or ctrl + C
 ### everyone have to do after clone repo 
 1. python -m venv venv
 2. source venv/bin/activate 
-3. pip install -r requirements.txt 
-4. python run_game.py
+3. pip install -r requirements.txt
+4.  flask db init        # Khởi tạo thư mục migrations/
+    flask db migrate -m "Initial migration"
+    flask db upgrade     # Tạo file app.db cục bộ
+
+5. python run_game.py
 
 > note: lets convert these commands to windows command if you use windows os
