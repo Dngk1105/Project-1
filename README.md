@@ -15,9 +15,9 @@ kill <PID> or ctrl + C
 1. python -m venv venv
 2. source venv/bin/activate 
 3. pip install -r requirements.txt
-4.  flask db init        # Khởi tạo thư mục migrations/
-    flask db migrate -m "Initial migration"
-    flask db upgrade     # Tạo file app.db cục bộ
+4.  - flask db init        # Khởi tạo thư mục migrations/
+    - flask db migrate -m "Initial migration"
+    - flask db upgrade     # Tạo file app.db cục bộ
 
 5. python run_game.py
 
