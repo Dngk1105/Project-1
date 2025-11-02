@@ -5,7 +5,7 @@
   <p>Số trận đã chơi: {{ player.games_played }}</p>
   <p>Thắng: {{ player.wins }}</p>
   <p>Thua: {{ player.losses }}</p>
-  <p>Tỉ lệ thắng: {{ player.win_rate }}%</p>
+  <p>Tỉ lệ thắng: {{ player.win_rate * 100 }}%</p>
 
   <h3>Phổ xác suất đặt tàu</h3>
   {% if player.ship_probability_matrix %}
