@@ -300,7 +300,7 @@ def game_setup(game_id):
     if not board:
         logic.init_board(player_name)
 
-    # Nếu là AI đối thủ → tự động đặt tàu và sẵn sàng
+    # Nếu là AI đối thủ → tự động sẵn sàng
     if game.ai and not logic.get_board(game.ai.name):
         game.ai_ready = True
         db.session.commit()

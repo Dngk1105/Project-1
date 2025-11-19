@@ -3,20 +3,18 @@ from app import db
 from app.models import Player
 from app.ai.ai_interface import BaseAI
 
-class ProbAI():
+class ProbAI(BaseAI):
     """
     AI dùng phổ xác xuất để quyết định phát bắn
     """
     
     def __init__(self, game, name = None):
-        super.__init__(game, name)
-        self.init_matrix = self.init_prob_matrix()
+        super().__init__(game, name)
             
     def place_ships(self):
         """
-        
         """
-        return 
+        self.auto_place_ships_strategy(self.name, strategy= "avoid mid and corner")
     
     def make_shot(self):
         return

@@ -17,111 +17,64 @@ class ShipPlacementStrategy(GameLogic):
                 placed = True
         return board
 
+    #----------------------------------------------------------------------------------------------
     
-    def strategy_edge(self, board, ship_name, length, owner):
-        """Đặt tàu sát mép bảng (nhưng tránh góc)."""
-        edges = [
-            (0, random.randint(1, 8)),        # mép trên
-            (9, random.randint(1, 8)),        # mép dưới
-            (random.randint(1, 8), 0),        # mép trái
-            (random.randint(1, 8), 9),        # mép phải
-        ]
-
-        random.shuffle(edges)
-        for x, y in edges:
-            for orientation in ["H", "V"]:
-                if self.can_place(board, x, y, length, orientation):
-                    return self.place_ship(board, x, y, length, orientation, ship_name, owner)
-
-        return self.strategy_random(board, ship_name, length, owner)
-
-
-    def strategy_no_corners(self, board, ship_name, length, owner):
-        """Tránh 4 góc"""
-        for _ in range(40):
-            x = random.randint(1, 8)
-            y = random.randint(1, 8)
-            orientation = random.choice(["H", "V"])
-            if self.can_place(board, x, y, length, orientation):
-                return self.place_ship(board, x, y, length, orientation, ship_name, owner)
-
-        return self.strategy_random(board, ship_name, length, owner)
-
-   
-    def strategy_spread(self, board, ship_name, length, owner):
-        """Giữ khoảng cách giữa các tàu."""
-        for _ in range(50):
+    def strategy_avoid_mid_corner(self, board, ship_name, length, owner):
+        """Tránh đặt tàu ở giữa và 2 bên rìa"""
+        invalid = {0, 4 ,5 , 9}
+        placed = False
+        attempts = 0
+        max_attempts = 100
+        while not placed and attempts < max_attempts:  
+            attempts += 1
+            if random.random() < 0.9:
+                orientation = "V"
+            else:
+                orientation = "H"
+            
             x = random.randint(0, 9)
             y = random.randint(0, 9)
+            
+            if self.can_place_avoid_mid_corner(board, x, y, length, orientation):
+                placed = True
+                board = self.place_ship(board, x, y, length, orientation, ship_name, owner)
+        if not placed:
+            board = self.strategy_random(board, ship_name, length, owner)
+        return board
+            
+    #----------------------------------------------------------------------------------------------
+    
+    def strategy_avoid_adjacent(self, board, ship_name, length, owner):
+        """Tránh xếp sát nhau"""
+        placed = False
+        attempts = 0
+        max_attempts = 100
+        while not placed and attempts < max_attempts:
+            attempts += 1
             orientation = random.choice(["H", "V"])
-
-            if not self.can_place(board, x, y, length, orientation):
-                continue
-
-            # kiểm tra khoảng cách an toàn 1 ô
-            safe = True
-            for dx in range(-1, length+1):
-                for dy in [-1, 0, 1]:
-                    nx = x + dx if orientation == "V" else x + dy
-                    ny = y + dx if orientation == "H" else y + dy
-
-                    if self.in_bounds(nx, ny):
-                        if board[nx][ny] == 1:
-                            safe = False
-                            break
-                if not safe:
-                    break
-
-            if safe:
-                return self.place_ship(board, x, y, length, orientation, ship_name, owner)
-
-        return self.strategy_random(board, ship_name, length, owner)
-
- 
-    def strategy_cluster(self, board, ship_name, length, owner):
-        """Đặt gần nhau để đánh lừa đối thủ."""
-        for _ in range(50):
-            x = random.randint(2, 7)
-            y = random.randint(2, 7)
-            orientation = random.choice(["H", "V"])
-
-            if self.can_place(board, x, y, length, orientation):
-                return self.place_ship(board, x, y, length, orientation, ship_name, owner)
-
-        return self.strategy_random(board, ship_name, length, owner)
-
-
-    def strategy_checkerboard_avoid(self, board, ship_name, length, owner):
-        """Tránh đặt theo ô caro"""
-        for _ in range(50):
             x = random.randint(0, 9)
             y = random.randint(0, 9)
-
-            if (x + y) % 2 == 0:  # bỏ qua ô caro
-                continue
-
-            orientation = random.choice(["H", "V"])
-            if self.can_place(board, x, y, length, orientation):
-                return self.place_ship(board, x, y, length, orientation, ship_name, owner)
-
-        return self.strategy_random(board, ship_name, length, owner)
-
+            if self.can_place_avoid_adjacent(board, x, y, length, orientation):
+                board = self.place_ship(board, x, y, length, orientation, ship_name, owner)
+                placed = True
+                
+        if not placed:
+            board = self.strategy_random(board, ship_name, length, owner)
+        return board
+    
+    #----------------------------------------------------------------------------------------------
    
    
    
    
-   
-   
+   #================================================================================================
     def auto_place_ships_strategy(self, owner_name, strategy="random"):
         board = self.init_board(owner_name)
 
         strat_map = {
             "random": self.strategy_random,
-            "edge": self.strategy_edge,
-            "nocorner": self.strategy_no_corners,
-            "spread": self.strategy_spread,
-            "cluster": self.strategy_cluster,
-            "checker_avoid": self.strategy_checkerboard_avoid,
+            "avoid mid and corner": self.strategy_avoid_mid_corner,
+            "avoid adjacent": self.strategy_avoid_adjacent
         }
 
         strat_func = strat_map.get(strategy, self.strategy_random)
@@ -131,3 +84,46 @@ class ShipPlacementStrategy(GameLogic):
 
         self.save_board(owner_name, board)
         return board
+
+    def can_place_avoid_mid_corner(self, board, x, y, length, orientation):
+        """Kiểm tra vị trí có thể đặt tàu tránh giữa và rìa"""
+        invalid = {0, 4, 5, 9}
+        size = len(board)
+
+
+        if orientation == "V":
+            for row in range(x, x + length):
+                if y in invalid:
+                    return False
+        else:  # "H"
+            for col in range(y, y + length):
+                if x in invalid:
+                    return False
+
+        # Kiểm tra chồng tàu khác
+        if not self.can_place(board, x, y, length, orientation):
+            return False
+
+        return True
+
+
+    def can_place_avoid_adjacent(self, board, x, y, length, orientation):
+        """Check có thể đặt tàu mà không sát tàu khác"""
+        for i in range(length):
+            nx = x + (i if orientation == "V" else 0)
+            ny = y + (i if orientation == "H" else 0)
+            
+            if not self.in_bounds(nx, ny):
+                return False
+            
+            if board[nx][ny] != 0:
+                return False
+            
+            for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                adjx, adjy = nx + dx, ny + dy
+                if not (0 <= adjx < len(board) and 0 <= adjy < len(board[0])):
+                    continue
+                if board[adjx][adjy] == 1:
+                    return False
+                
+        return True
