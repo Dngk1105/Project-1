@@ -64,8 +64,12 @@ class ShipPlacementStrategy(GameLogic):
     
     #----------------------------------------------------------------------------------------------
    
-   
-   
+    # def strategy_cluster(self, board, ship_name, length, owner):
+    #     """Xếp tàu theo từng cụm"""
+    #     placed = False
+    #     attempts =0
+    #     max_attempts = 100
+        
    
    #================================================================================================
     def auto_place_ships_strategy(self, owner_name, strategy="random"):
