@@ -2,7 +2,7 @@
 import random
 from app import db
 from app.game_logic.base_logic import GameLogic   
-
+ 
 class ShipPlacementStrategy(GameLogic):
 
     def strategy_random(self, board, ship_name, length, owner):

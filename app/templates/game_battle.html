@@ -14,13 +14,15 @@
     <table id="opponentBoard"></table>
   </div>
 
+  {% if game.ai %}
   <div id="aiPanel" style="min-width:300px;">
     <h3> Hoạt động của AI</h3>
     <div id="aiLogs" style="height:200px;overflow-y:auto;border:1px solid gray;padding:5px;background:#fafafa;"></div>
     
-    <h4 id="aiBoardTitle"></h4>
-    <div id="aiBoard"></div>
+    <h4 id="aiBoardTitle" style="display: none;"></h4>
+    <div id="aiBoard" style="display: none;"></div>
   </div>
+  {% endif %}
 </div>
 
 <p id="status"></p>
@@ -205,58 +207,63 @@ socket.on("ai_log_update", (data) => {
   logBox.scrollTop = logBox.scrollHeight; //Cuộn xuống dòng
 
   // Cập nhật thêm (nếu có)
-  if (data.ai_name === "DemoProbAI") {
-    if (data.prob_matrix) {
-      fetch("/render_matrix", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          matrix: data.prob_matrix,
-          heatmap: true
-        })
-      })
-      .then(res => res.text()) // chuyển phản hồi thành text HTML
-      .then(html => {
-        // Gắn bảng vào giao diện
-        document.getElementById("aiBoardTitle").textContent = `${data.ai_name}'s Board`;
-        document.getElementById("aiBoard").innerHTML = html;
-
-        const tdList = document.querySelectorAll('#aiBoard td[data-alpha]');
-        const alphas = Array.from(tdList).map(td => parseFloat(td.dataset.alpha));
-
-        // Loại bỏ ô 0 khi tính min/max
-        const nonZero = alphas.filter(a => a > 0);
-        const minA = Math.min(...nonZero);
-        const maxA = Math.max(...nonZero);
-        const range = Math.max(maxA - minA, 1e-6); // tránh chia cho 0
-
-        tdList.forEach(td => {
-          const a = parseFloat(td.dataset.alpha);
-
-          if (a < 0) {
-            td.style.backgroundColor = "rgb(150, 200, 255)"; // trượt - xanh nhạt
-          } else if (a === 0) {
-            td.style.backgroundColor = "rgba(200, 0, 40, 1)"; // trúng - đỏ đậm
-            td.style.color = "white";
-          } else if (a > 0) {
-            // Gradient cho xác suất
-            const norm = (a - minA) / range;
-            const r = 255;
-            const g = Math.round(220 * (1 - norm));
-            const b = Math.round(220 * (1 - norm));
-            td.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
-            td.style.color = norm > 0.6 ? "white" : "black";
-          } else {
-            td.style.backgroundColor = "white";
-          }
-
-          td.textContent = a.toFixed(1);
-        });
-      })
-      .catch(err => console.error("Render matrix error:", err));
-    }
+  if (data.prob_matrix) {
+    renderAiBoard(data.ai_name, data.prob_matrix);
   }
 });
+
+function renderAiBoard(aiName, matrix) {
+  fetch("/render_matrix", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      matrix: matrix,
+      heatmap: true
+    })
+  })
+  .then(res => res.text()) // chuyển phản hồi thành text HTML
+  .then(html => {
+    // Gắn bảng vào giao diện
+    const titleEl = document.getElementById("aiBoardTitle");
+    const boardEl = document.getElementById("aiBoard");
+    titleEl.style.display = "block";
+    boardEl.style.display = "block";
+    titleEl.textContent = `${aiName}'s Board`;
+    boardEl.innerHTML = html;
+
+    const tdList = document.querySelectorAll('#aiBoard td[data-alpha]');
+    const alphas = Array.from(tdList).map(td => parseFloat(td.dataset.alpha));
+
+    // Loại bỏ ô 0 khi tính min/max
+    const nonZero = alphas.filter(a => a > 0);
+    const minA = Math.min(...nonZero);
+    const maxA = Math.max(...nonZero);
+    const range = Math.max(maxA - minA, 1e-6); // tránh chia cho 0
+
+    tdList.forEach(td => {
+      const a = parseFloat(td.dataset.alpha);
+
+      if (a < 0) {
+        td.style.backgroundColor = "rgb(150, 200, 255)"; // trượt - xanh nhạt
+      } else if (a === 0) {
+        td.style.backgroundColor = "rgba(200, 0, 40, 1)"; // trúng - đỏ đậm
+        td.style.color = "white";
+      } else if (a > 0) {
+        // Gradient cho xác suất
+        const norm = (a - minA) / range;
+        const r = 255;
+        const g = Math.round(220 * (1 - norm));
+        const b = Math.round(220 * (1 - norm));
+        td.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+        td.style.color = norm > 0.6 ? "white" : "black";
+      } else {
+        td.style.backgroundColor = "white";
+      }
+
+      td.textContent = a.toFixed(1);
+    });
+  })
+  .catch(err => console.error("Render matrix error:", err));
+}
 </script>
 {% endblock %}
-
