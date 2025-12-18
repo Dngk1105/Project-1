@@ -15,7 +15,7 @@ class RandomAI(BaseAI):
         self.auto_place_ships(self.name)
 
     def make_shot(self, attacker_name, target_name):
-        from app.queries import overall_probability_matrix
+        from app.game_logic.queries import overall_probability_matrix
         overall_prob = overall_probability_matrix()
 
         target = db.session.scalar(

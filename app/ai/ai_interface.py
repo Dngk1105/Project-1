@@ -1,6 +1,7 @@
 import random
 from abc import ABC, abstractmethod
 from app.game_logic.base_logic import GameLogic
+from app.game_logic.place_ships_strat import ShipPlacementStrategy
 from app import socketio
 
 
@@ -26,7 +27,7 @@ class AIInterface(ABC):
         pass
 
 
-class BaseAI(GameLogic, AIInterface, ABC):
+class BaseAI(ShipPlacementStrategy, AIInterface, ABC):
     """
     Base class cho tất cả AI.
     """

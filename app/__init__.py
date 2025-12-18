@@ -5,7 +5,7 @@ from flask_migrate import Migrate
 from flask_login import LoginManager
 from datetime import datetime, timedelta
 import sqlalchemy as sa
-from flask_socketio import SocketIO  # ✅ thêm dòng này
+from flask_socketio import SocketIO 
 
 app = Flask(__name__)
 app.config.from_object(Config)

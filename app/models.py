@@ -198,6 +198,7 @@ class ShipPlacement(db.Model):
     owner: so.Mapped[str] = so.mapped_column(db.String(16))  
     grid_data: so.Mapped[str] = so.mapped_column(db.Text)    
     ship_data: so.Mapped[Optional[str]] = so.mapped_column(db.Text, nullable=True)
+    shot_data: so.Mapped[Optional[str]] = so.mapped_column(db.Text, nullable=True)
     
     # Quan hệ đến game
     #backref là ánh xạ ngược từ Game->ShipPlacement qua game.ship_placements

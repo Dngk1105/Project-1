@@ -16,7 +16,7 @@ from app.ai.factory import get_ai_instance
 @app.route('/index')
 @login_required
 def index() : 
-    from app.queries import overall, overall_probability_matrix
+    from app.game_logic.queries import overall, overall_probability_matrix
     overall_data = overall()
     prob_matrix = overall_probability_matrix()
     return render_template('index.html', title = 'Trang chủ', overall_data = overall_data, prob_matrix = prob_matrix)
@@ -300,10 +300,8 @@ def game_setup(game_id):
     if not board:
         logic.init_board(player_name)
 
-    # Nếu là AI đối thủ → tự động đặt tàu và sẵn sàng
+    # Nếu là AI đối thủ → tự động sẵn sàng
     if game.ai and not logic.get_board(game.ai.name):
-        ai = get_ai_instance(game)
-        ai.place_ships()
         game.ai_ready = True
         db.session.commit()
 
@@ -327,6 +325,8 @@ def game_battle(game_id):
     # xác định đối thủ
     if game.ai:
         opponent_name = game.ai.name
+        ai = get_ai_instance(game)
+        ai.place_ships()
     elif is_host and game.opponent:
         opponent_name = game.opponent.playername
     elif not is_host:

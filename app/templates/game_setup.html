@@ -24,7 +24,12 @@
 <hr>
 <h3>Bảng của bạn:</h3>
 <table id="board"></table>
-<button id="randomBtn">Chọn ngẫu nhiên</button>
+<button id="randomBtn">Tự đặt tàu</button>
+<select id="strategySelect">
+  <option value="random">Ngẫu nhiên</option>
+  <option value="avoid mid and corner">Tránh đặt giữa và góc</option>
+  <option value="avoid adjacent">Không đặt kề nhau</option>
+</select>
 
 <p id="status"></p>
 
@@ -139,11 +144,24 @@ document.getElementById("readyBtn").addEventListener("click", () => {
   document.getElementById("status").textContent = "Bạn đã sẵn sàng!";
 });
 document.getElementById("randomBtn").addEventListener("click", () => {
-  socket.emit("auto_place_ship", {game_id: gameId,player: playerName});
-  socket.emit("player_ready", {game_id: gameId, player: playerName,});
+  strategy = document.getElementById("strategySelect").value;
+
+  socket.emit("auto_place_ship", {
+    game_id: gameId,
+    player: playerName,
+    strategy: strategy
+  });
+
+  socket.emit("player_ready", {
+    game_id: gameId,
+    player: playerName,
+  });
+
   document.getElementById("randomBtn").disabled = true;
   document.getElementById("readyBtn").disabled = true;
-  document.getElementById("status").textContent = "Tàu đã đặt xong, Bạn đã sẵn sàng!"
+
+  document.getElementById("status").textContent =
+    "Tàu đã đặt xong theo chiến lược '" + strategy + "', Bạn đã sẵn sàng!";
 });
 </script>
 

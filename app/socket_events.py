@@ -4,6 +4,7 @@ from flask import request, current_app, url_for
 from flask_login import current_user
 from app.models import Game
 from app.game_logic.base_logic import GameLogic
+from app.game_logic.place_ships_strat import ShipPlacementStrategy
 from app.ai.factory import get_ai_instance
 from time import sleep
 
@@ -97,10 +98,11 @@ def handle_auto_place_ship(data):
 
     game_id = data["game_id"]
     player = data["player"]
+    strategy = data["strategy"]
     game = db.session.get(Game, game_id)
 
-    logic = GameLogic(game)
-    board = logic.auto_place_ships(player)
+    logic = ShipPlacementStrategy(game)
+    board = logic.auto_place_ships_strategy(player, strategy)
     board = json.dumps(board)
 
     socketio.emit("auto_ship_placed_self", {"board": board}, to=request.sid)
