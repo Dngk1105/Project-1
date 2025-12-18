@@ -14,18 +14,27 @@
     <table id="opponentBoard"></table>
   </div>
 
-  {% if game.ai %}
-  <div id="aiPanel" style="min-width:300px;">
-    <h3> Hoạt động của AI</h3>
-    <div id="aiLogs" style="height:200px;overflow-y:auto;border:1px solid gray;padding:5px;background:#fafafa;"></div>
-    
-    <h4 id="aiBoardTitle" style="display: none;"></h4>
-    <div id="aiBoard" style="display: none;"></div>
-  </div>
-  {% endif %}
 </div>
 
 <p id="status"></p>
+
+{% if game.ai %}
+<div id="aiPanel" style="min-width:300px;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+    <h3 style="margin: 0;">Hoạt động của AI</h3>
+    <button onclick="toggleAiPanel()" id="btnToggleAi" style="padding: 2px 8px; cursor: pointer;">Thu gọn</button>
+  </div>
+  <div id="aiContent" style="display: flex; gap: 15px;">
+    <div id="aiLogs" style="flex: 1; height:350px; overflow-y:auto; border:1px solid gray; padding:5px; background:#fafafa;"></div>
+    <div>
+      <h4 id="aiBoardTitle" style="display: none; margin-top: 0;"></h4>
+      <div id="aiBoard" style="display: none;"></div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+
 
 <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 <script>
@@ -61,7 +70,7 @@ function makeBoard(table, data, hideShips=false, isOpponent=false) {
 
       // nếu là bảng của mình → luôn thấy tàu
       // nếu là bảng đối thủ → ẩn tàu (val==1) thành trắng
-      if (val === 1 /*&& !hideShips*/) cell.style.background = "lightblue";
+      if (val === 1 && !hideShips) cell.style.background = "lightblue";
       else if (val === 2) cell.style.background = "tomato";     // hit
       else if (val === 3) cell.style.background = "lightgray";    // miss
       else if (val === 4) cell.style.background = "crimson";   // sunk
@@ -78,7 +87,7 @@ function makeBoard(table, data, hideShips=false, isOpponent=false) {
 }
 
 makeBoard(playerBoard, playerBoardData, false, false);
-makeBoard(opponentBoard, opponentBoardData, true, true);
+makeBoard(opponentBoard, opponentBoardData, false, true);
 
 // Vô hiệu hóa chọn bảng đối thủ nếu chưa tới lượt
 function disableOpponentBoard(disabled) {
@@ -264,6 +273,18 @@ function renderAiBoard(aiName, matrix) {
     });
   })
   .catch(err => console.error("Render matrix error:", err));
+}
+
+function toggleAiPanel() {
+  const content = document.getElementById("aiContent");
+  const btn = document.getElementById("btnToggleAi");
+  if (content.style.display === "none") {
+    content.style.display = "flex";
+    btn.textContent = "Thu gọn";
+  } else {
+    content.style.display = "none";
+    btn.textContent = "Mở rộng";
+  }
 }
 </script>
 {% endblock %}
