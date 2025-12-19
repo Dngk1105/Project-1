@@ -3,6 +3,11 @@
 <h2>Trận chiến #{{ game.id }}</h2>
 <p>Người chơi: {{ player_name }} vs {{ opponent_name }}</p>
 
+<div style="margin-top: 10px;">
+  <button onclick="requestUndo()">Undo (Hoàn tác)</button>
+  <button onclick="requestRedo()">Redo (Làm lại)</button>
+</div>
+
 <div style="display:flex;gap:50px;">
   <div>
     <h3>Bảng của bạn</h3>
@@ -286,5 +291,25 @@ function toggleAiPanel() {
     btn.textContent = "Mở rộng";
   }
 }
+
+function requestUndo() {
+  socket.emit("undo_move", { game_id: gameId });
+}
+
+function requestRedo() {
+  socket.emit("redo_move", { game_id: gameId });
+}
+
+socket.on("board_updated", (data) => {
+  if (data.owner === playerName) {
+      // Nếu bảng của mình bị thay đổi (do mình bị bắn và undo lại)
+      makeBoard(playerBoard, data.board, false, false);
+  } else {
+      // Nếu bảng đối thủ bị thay đổi (do mình bắn và undo lại)
+      // hideShips=true để đảm bảo không lộ tàu khi nhận dữ liệu raw
+      makeBoard(opponentBoard, data.board, false, true);
+  }
+});
+
 </script>
 {% endblock %}

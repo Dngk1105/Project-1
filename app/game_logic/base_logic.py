@@ -1,6 +1,6 @@
 import json
 from app import db
-from app.models import ShipPlacement, Player
+from app.models import ShipPlacement, Player, GameMove
 import sqlalchemy as sa
 import random
 
@@ -209,6 +209,12 @@ class GameLogic:
             print(f"[DEBUG] Không tìm thấy bảng của {target_name}")
             return {"result": "invalid", "winner": None}
 
+        # Nếu người chơi bắn phát mới, các nước đi đã được undo để chờ redo sẽ bị xóa
+        db.session.execute(
+            sa.delete(GameMove)
+            .where(GameMove.game_id == self.game.id, GameMove.is_reverted == True)
+        )
+
         # Kiểm tra toạ độ hợp lệ
         if not self.in_bounds(x, y):
             print(f"[DEBUG] Toạ độ ({x},{y}) ngoài phạm vi bảng!")
@@ -216,7 +222,9 @@ class GameLogic:
 
         cell = board[x][y]
         print(f"[DEBUG] Trạng thái ô ({x},{y}) trước khi bắn: {cell}")
+        ship_name = None
         result = None
+        prev_cell = cell    #Lưu trạng thái cũ để undo
 
         # --- Xử lý các trường hợp ---
         if cell == 0:
@@ -262,6 +270,21 @@ class GameLogic:
             self.game.opponent_shots += 1
             print(f"[DEBUG] +1 lượt bắn cho opponent {attacker_name}")
 
+        #Tạo bản ghi undo/redo
+        game_move = GameMove(
+            game_id=self.game.id,
+            attacker_name = attacker_name,
+            target_name = target_name,
+            x = x,
+            y = y,
+            result = result,
+            game_turn = self.game.current_turn,  
+            prev_cell = prev_cell,
+            sunk_ship_name = ship_name if result == "sunk" else None,
+            is_reverted = False
+        )
+        
+        db.session.add(game_move)
         db.session.commit()
 
         # --- Kiểm tra thắng cuộc ---
@@ -318,6 +341,161 @@ class GameLogic:
                 "y": y
             }
 
+
+    # --------------------------- Xử lí undo/redo ---------------------------
+
+    def undo_last_move(self):
+        print(f"\n[DEBUG] --- BẮT ĐẦU UNDO (Game ID: {self.game.id}) ---")
+        
+        # undo nước đi gần nhất
+        last_move = db.session.scalar(
+            sa.select(GameMove)
+            .where(GameMove.game_id == self.game.id,
+                GameMove.is_reverted == False)
+            .order_by(GameMove.id.desc())
+            .limit(1)
+        )
+        
+        if not last_move:
+            print("[DEBUG] Không tìm thấy nước đi nào hợp lệ để undo (hoặc đã undo hết).")
+            return None
+
+        print(f"[DEBUG] Tìm thấy Last Move: ID={last_move.id}, Attacker={last_move.attacker_name}, Target={last_move.target_name}, Kết quả cũ={last_move.result}")
+
+        board = self.get_board(last_move.target_name)
+        
+        # --- Xử lí tàu chìm ---
+        # Lưu ý: Huynh kiểm tra kỹ tên trường là 'sunk_ship_name' hay 'sunked_ship_name' trong model nhé
+        if last_move.result == "sunk" and last_move.sunk_ship_name:
+            print(f"[DEBUG] Phát hiện tàu chìm cần khôi phục: {last_move.sunk_ship_name}")
+            
+            placement = db.session.scalar(
+                sa.select(ShipPlacement)
+                .where(ShipPlacement.game_id == self.game.id,
+                        ShipPlacement.owner == last_move.target_name)
+            )
+            
+            if placement and placement.ship_data:
+                ship_data = json.loads(placement.ship_data)
+                
+                if last_move.sunk_ship_name in ship_data:    
+                    print(f"[DEBUG] Đã tìm thấy dữ liệu tàu {last_move.sunk_ship_name} trong ShipPlacement.")
+                    
+                    # Bỏ đánh dấu sunk
+                    ship_data[last_move.sunk_ship_name]["sunked"] = False
+                    placement.ship_data = json.dumps(ship_data)
+                    
+                    # Khôi phục các ô thân tàu từ 4 (chìm) về 2 (trúng)
+                    positions = ship_data[last_move.sunk_ship_name]["positions"]
+                    count_restored = 0
+                    for px, py in positions:
+                        if board[px][py] == 4:
+                            board[px][py] = 2
+                            count_restored += 1
+                    print(f"[DEBUG] Đã khôi phục {count_restored} ô thân tàu từ trạng thái 4 về 2.")
+                else:
+                    print(f"[DEBUG] CẢNH BÁO: Không thấy tàu {last_move.sunk_ship_name} trong ship_data!")
+            else:
+                print("[DEBUG] CẢNH BÁO: Không tìm thấy placement hoặc ship_data trống.")
+
+        # --- Trả về trạng thái ban đầu của ô bị bắn ---
+        current_val = board[last_move.x][last_move.y]
+        board[last_move.x][last_move.y] = last_move.prev_cell
+        print(f"[DEBUG] Revert ô ({last_move.x}, {last_move.y}): {current_val} -> {last_move.prev_cell}")
+        
+        # --- Đánh dấu Trạng thái đã quay lui ---
+        last_move.is_reverted = True
+
+        # --- Attacker được bắn lại ---
+        self.game.current_turn = last_move.attacker_name
+        print(f"[DEBUG] Trả lượt chơi lại cho: {self.game.current_turn}")
+
+        # --- Xử lí thống kê ---
+        if last_move.attacker_name == getattr(self.game.player, "playername", None):
+            self.game.player_shots = max(0, self.game.player_shots - 1)
+            print(f"[DEBUG] Giảm shot player còn: {self.game.player_shots}")
+        else:
+            self.game.opponent_shots = max(0, self.game.opponent_shots - 1)
+            print(f"[DEBUG] Giảm shot opponent còn: {self.game.opponent_shots}")
+        
+        self.save_board(last_move.target_name, board)
+        print(f"[DEBUG] Đã lưu board {last_move.target_name}")
+
+        try:
+            db.session.commit()
+            print("[DEBUG] Commit DB thành công. Undo hoàn tất.\n")
+        except Exception as e:
+            print(f"[DEBUG] LỖI khi commit: {e}")
+            db.session.rollback()
+
+        return {
+            "attacker": last_move.attacker_name, 
+            "target": last_move.target_name,
+            "board": board
+        }
+    
+    def redo_last_move(self):
+        #redo nước đi gần nhất
+        next_move = db.session.scalar(
+            sa.select(GameMove)
+            .where(GameMove.game_id == self.game.id,
+                   GameMove.is_reverted == True)
+            .order_by(GameMove.id.asc())
+            .limit(1)
+        )
+        if not next_move:
+            return None
+
+        board = self.get_board(next_move.target_name)
+        comp = None
+        
+        if next_move.result == "miss":
+            board[next_move.x][next_move.y] = 3
+            self.game.current_turn = next_move.target_name
+        elif next_move.result == "hit":
+            board[next_move.x][next_move.y] = 2
+            self.game.current_turn = next_move.attacker_name
+        elif next_move.result == "already_hit":
+            self.game.current_turn = next_move.attacker_name
+        elif next_move.result == "sunk":
+            placement = db.session.scalar(
+                sa.select(ShipPlacement)
+                .where(ShipPlacement.game_id == self.game.id,
+                        ShipPlacement.owner == next_move.target_name)
+            )
+            if placement and placement.ship_data and next_move.sunk_ship_name:
+                ship_data = json.loads(placement.ship_data)
+                ship_data[next_move.sunk_ship_name]["sunked"] = True
+                placement.ship_data = json.dumps(ship_data)
+                
+                positions = ship_data[next_move.sunk_ship_name]["positions"]
+                comp = positions
+                for px, py in positions:
+                    board[px][py] = 4            
+            self.game.current_turn = next_move.attacker_name
+        
+        next_move.is_reverted = False
+        
+        if next_move.attacker_name == getattr(self.game.player, "playername", None):
+            self.game.player_shots += 1
+        else:
+            self.game.opponent_shots += 1 
+            
+        self.save_board(next_move.target_name, board)
+        db.session.commit()
+
+        # return để gọi process_shot_result
+        return {
+            "result": next_move.result,
+            "attacker": next_move.attacker_name,
+            "target": next_move.target_name,
+            "x": next_move.x,
+            "y": next_move.y,
+            "winner": self.game.winner if self.game.status == "finished" else None,
+            "owner": next_move.target_name,
+            "ship_name": next_move.sunk_ship_name,
+            "comp": comp
+        }
 
     # --------------------------- Không phải hàm chính ---------------------------
     

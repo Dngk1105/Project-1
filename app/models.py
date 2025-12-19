@@ -216,7 +216,8 @@ class GameMove(db.Model):
     y: so.Mapped[int] = so.mapped_column(sa.Integer)
     result: so.Mapped[str] = so.mapped_column(db.String(16))
     game_turn: so.Mapped[str] = so.mapped_column(db.String(32))
-
+    
+    
     prev_cell: so.Mapped[int] = so.mapped_column(sa.Integer)
     sunk_ship_name: so.Mapped[Optional[str]] = so.mapped_column(db.String(32), nullable=True)
     is_reverted: so.Mapped[bool] = so.mapped_column(default=False)

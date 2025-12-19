@@ -211,3 +211,43 @@ def handle_ai_make_shot(data):
     db.session.commit()
 
     process_shot_result(game, result_data, game.ai.name, game.player.playername)
+
+
+@socketio.on("undo_move")
+def handle_undo_move(data):
+    game_id = data.get("game_id")
+    game = db.session.get(Game, game_id)
+    if not game:
+        return
+    
+    logic = GameLogic(game)
+    undo_data = logic.undo_last_move()
+    
+    if undo_data:
+        socketio.emit("board_updated", {
+            "game_id": game_id,
+            "owner": undo_data["target"],
+            "board": undo_data["board"]
+        }, to=str(game.id))
+        socketio.emit("turn_change", {
+            "current_turn": game.current_turn,
+            "is_ai_turn": (game.ai and game.current_turn == game.ai.name)
+        }, to=str(game.id))
+
+@socketio.on("redo_move")
+def handle_redo(data):
+    from app.socket_helpers import process_shot_result
+    game_id = data.get("game_id")
+    game = db.session.get(Game, game_id)
+    if not game: return
+
+    logic = GameLogic(game)
+    result_data = logic.redo_last_move()
+    
+    if result_data:
+        process_shot_result(
+            game, 
+            result_data, 
+            result_data["attacker"], 
+            result_data["target"]
+        )
