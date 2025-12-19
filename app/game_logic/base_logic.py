@@ -347,7 +347,6 @@ class GameLogic:
     def undo_last_move(self):
         print(f"\n[DEBUG] --- BẮT ĐẦU UNDO (Game ID: {self.game.id}) ---")
         
-        # undo nước đi gần nhất
         last_move = db.session.scalar(
             sa.select(GameMove)
             .where(GameMove.game_id == self.game.id,
@@ -364,8 +363,8 @@ class GameLogic:
 
         board = self.get_board(last_move.target_name)
         
-        # --- Xử lí tàu chìm ---
-        # Lưu ý: Huynh kiểm tra kỹ tên trường là 'sunk_ship_name' hay 'sunked_ship_name' trong model nhé
+        
+        # xử lí tàu chìm 
         if last_move.result == "sunk" and last_move.sunk_ship_name:
             print(f"[DEBUG] Phát hiện tàu chìm cần khôi phục: {last_move.sunk_ship_name}")
             
@@ -381,11 +380,10 @@ class GameLogic:
                 if last_move.sunk_ship_name in ship_data:    
                     print(f"[DEBUG] Đã tìm thấy dữ liệu tàu {last_move.sunk_ship_name} trong ShipPlacement.")
                     
-                    # Bỏ đánh dấu sunk
                     ship_data[last_move.sunk_ship_name]["sunked"] = False
                     placement.ship_data = json.dumps(ship_data)
                     
-                    # Khôi phục các ô thân tàu từ 4 (chìm) về 2 (trúng)
+                    # Khôi phục các ô tàu chìm
                     positions = ship_data[last_move.sunk_ship_name]["positions"]
                     count_restored = 0
                     for px, py in positions:
@@ -398,19 +396,18 @@ class GameLogic:
             else:
                 print("[DEBUG] CẢNH BÁO: Không tìm thấy placement hoặc ship_data trống.")
 
-        # --- Trả về trạng thái ban đầu của ô bị bắn ---
+        # Trả lại ô cũ 
         current_val = board[last_move.x][last_move.y]
         board[last_move.x][last_move.y] = last_move.prev_cell
         print(f"[DEBUG] Revert ô ({last_move.x}, {last_move.y}): {current_val} -> {last_move.prev_cell}")
         
-        # --- Đánh dấu Trạng thái đã quay lui ---
         last_move.is_reverted = True
 
-        # --- Attacker được bắn lại ---
+        # Trả lượt
         self.game.current_turn = last_move.attacker_name
         print(f"[DEBUG] Trả lượt chơi lại cho: {self.game.current_turn}")
 
-        # --- Xử lí thống kê ---
+        # Xử lí thống kê
         if last_move.attacker_name == getattr(self.game.player, "playername", None):
             self.game.player_shots = max(0, self.game.player_shots - 1)
             print(f"[DEBUG] Giảm shot player còn: {self.game.player_shots}")

@@ -4,8 +4,9 @@
 <p>Người chơi: {{ player_name }} vs {{ opponent_name }}</p>
 
 <div style="margin-top: 10px;">
-  <button onclick="requestUndo()">Undo (Hoàn tác)</button>
-  <button onclick="requestRedo()">Redo (Làm lại)</button>
+  <button id="btnPause" onclick="togglePause()">Tạm dừng</button>
+  <button id="btnUndo" onclick="requestUndo()" disabled>Undo (Hoàn tác)</button>
+  <button id="btnRedo" onclick="requestRedo()" disabled>Redo (Làm lại)</button>
 </div>
 
 <div style="display:flex;gap:50px;">
@@ -27,10 +28,10 @@
 <div id="aiPanel" style="min-width:300px;">
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
     <h3 style="margin: 0;">Hoạt động của AI</h3>
-    <button onclick="toggleAiPanel()" id="btnToggleAi" style="padding: 2px 8px; cursor: pointer;">Thu gọn</button>
   </div>
+  <button onclick="toggleAiPanel()" id="btnToggleAi" style="padding: 2px 8px; cursor: pointer;">Thu gọn</button>
   <div id="aiContent" style="display: flex; gap: 15px;">
-    <div id="aiLogs" style="flex: 1; height:350px; overflow-y:auto; border:1px solid gray; padding:5px; background:#fafafa;"></div>
+    <div id="aiLogs" style="flex: 1; max-width: 400px; height:350px; overflow-y:auto; border:1px solid gray; padding:5px; background:#fafafa;"></div>
     <div>
       <h4 id="aiBoardTitle" style="display: none; margin-top: 0;"></h4>
       <div id="aiBoard" style="display: none;"></div>
@@ -49,6 +50,7 @@ const playerName = "{{ player_name }}";
 const isHost = "{{ is_host }}".toLowerCase() === "true";
 const opponentName = "{{ opponent_name }}";
 let currentTurn = "{{ game.current_turn }}";
+let isPaused = false;
 
 socket.emit("join_room", { room: gameId });
 
@@ -121,7 +123,7 @@ function disableOpponentBoard(disabled) {
 
 
 function fireAt(x, y) {
-    if (currentTurn !== playerName) {
+    if (currentTurn !== playerName || isPaused) {
       document.getElementById("status").textContent = "Chưa đến lượt bạn!";
       return;
     }
@@ -291,6 +293,42 @@ function toggleAiPanel() {
     btn.textContent = "Mở rộng";
   }
 }
+
+function togglePause() {
+  if (!isPaused) {
+    socket.emit("pause_game", { game_id: gameId });
+  } else {
+    socket.emit("resume_game", { game_id: gameId });
+  }
+}
+
+socket.on("game_paused", () => {
+  isPaused = true;
+  document.getElementById("btnPause").textContent = "Tiếp tục";
+  document.getElementById("status").textContent = "Game đang tạm dừng - Có thể Undo/Redo";
+  
+  // Mở khóa undo/redo
+  document.getElementById("btnUndo").disabled = false;
+  document.getElementById("btnRedo").disabled = false;
+  
+  // Khóa bảng
+  disableOpponentBoard(true);
+});
+
+socket.on("game_resumed", () => {
+  isPaused = false;
+  document.getElementById("btnPause").textContent = "Tạm dừng";
+  
+  // Khóa undo/redo
+  document.getElementById("btnUndo").disabled = true;
+  document.getElementById("btnRedo").disabled = true;
+  
+  // Khôi phục trạng thái bảng dựa trên lượt
+  if (currentTurn === playerName) {
+      document.getElementById("status").textContent = "Đến lượt bạn!";
+      disableOpponentBoard(false);
+  }
+});
 
 function requestUndo() {
   socket.emit("undo_move", { game_id: gameId });
