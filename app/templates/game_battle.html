@@ -3,6 +3,12 @@
 <h2>Trận chiến #{{ game.id }}</h2>
 <p>Người chơi: {{ player_name }} vs {{ opponent_name }}</p>
 
+<div style="margin-top: 10px;">
+  <button id="btnPause" onclick="togglePause()">Tạm dừng</button>
+  <button id="btnUndo" onclick="requestUndo()" disabled>Undo (Hoàn tác)</button>
+  <button id="btnRedo" onclick="requestRedo()" disabled>Redo (Làm lại)</button>
+</div>
+
 <div style="display:flex;gap:50px;">
   <div>
     <h3>Bảng của bạn</h3>
@@ -14,16 +20,27 @@
     <table id="opponentBoard"></table>
   </div>
 
-  <div id="aiPanel" style="min-width:300px;">
-    <h3> Hoạt động của AI</h3>
-    <div id="aiLogs" style="height:200px;overflow-y:auto;border:1px solid gray;padding:5px;background:#fafafa;"></div>
-    
-    <h4 id="aiBoardTitle"></h4>
-    <div id="aiBoard"></div>
-  </div>
 </div>
 
 <p id="status"></p>
+
+{% if game.ai %}
+<div id="aiPanel" style="min-width:300px;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+    <h3 style="margin: 0;">Hoạt động của AI</h3>
+  </div>
+  <button onclick="toggleAiPanel()" id="btnToggleAi" style="padding: 2px 8px; cursor: pointer;">Thu gọn</button>
+  <div id="aiContent" style="display: flex; gap: 15px;">
+    <div id="aiLogs" style="flex: 1; max-width: 400px; height:350px; overflow-y:auto; border:1px solid gray; padding:5px; background:#fafafa;"></div>
+    <div>
+      <h4 id="aiBoardTitle" style="display: none; margin-top: 0;"></h4>
+      <div id="aiBoard" style="display: none;"></div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+
 
 <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 <script>
@@ -33,6 +50,7 @@ const playerName = "{{ player_name }}";
 const isHost = "{{ is_host }}".toLowerCase() === "true";
 const opponentName = "{{ opponent_name }}";
 let currentTurn = "{{ game.current_turn }}";
+let isPaused = false;
 
 socket.emit("join_room", { room: gameId });
 
@@ -59,7 +77,7 @@ function makeBoard(table, data, hideShips=false, isOpponent=false) {
 
       // nếu là bảng của mình → luôn thấy tàu
       // nếu là bảng đối thủ → ẩn tàu (val==1) thành trắng
-      if (val === 1 /*&& !hideShips*/) cell.style.background = "lightblue";
+      if (val === 1 && !hideShips) cell.style.background = "lightblue";
       else if (val === 2) cell.style.background = "tomato";     // hit
       else if (val === 3) cell.style.background = "lightgray";    // miss
       else if (val === 4) cell.style.background = "crimson";   // sunk
@@ -76,7 +94,7 @@ function makeBoard(table, data, hideShips=false, isOpponent=false) {
 }
 
 makeBoard(playerBoard, playerBoardData, false, false);
-makeBoard(opponentBoard, opponentBoardData, true, true);
+makeBoard(opponentBoard, opponentBoardData, false, true);
 
 // Vô hiệu hóa chọn bảng đối thủ nếu chưa tới lượt
 function disableOpponentBoard(disabled) {
@@ -105,7 +123,7 @@ function disableOpponentBoard(disabled) {
 
 
 function fireAt(x, y) {
-    if (currentTurn !== playerName) {
+    if (currentTurn !== playerName || isPaused) {
       document.getElementById("status").textContent = "Chưa đến lượt bạn!";
       return;
     }
@@ -205,58 +223,131 @@ socket.on("ai_log_update", (data) => {
   logBox.scrollTop = logBox.scrollHeight; //Cuộn xuống dòng
 
   // Cập nhật thêm (nếu có)
-  if (data.ai_name === "DemoProbAI") {
-    if (data.prob_matrix) {
-      fetch("/render_matrix", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          matrix: data.prob_matrix,
-          heatmap: true
-        })
-      })
-      .then(res => res.text()) // chuyển phản hồi thành text HTML
-      .then(html => {
-        // Gắn bảng vào giao diện
-        document.getElementById("aiBoardTitle").textContent = `${data.ai_name}'s Board`;
-        document.getElementById("aiBoard").innerHTML = html;
-
-        const tdList = document.querySelectorAll('#aiBoard td[data-alpha]');
-        const alphas = Array.from(tdList).map(td => parseFloat(td.dataset.alpha));
-
-        // Loại bỏ ô 0 khi tính min/max
-        const nonZero = alphas.filter(a => a > 0);
-        const minA = Math.min(...nonZero);
-        const maxA = Math.max(...nonZero);
-        const range = Math.max(maxA - minA, 1e-6); // tránh chia cho 0
-
-        tdList.forEach(td => {
-          const a = parseFloat(td.dataset.alpha);
-
-          if (a < 0) {
-            td.style.backgroundColor = "rgb(150, 200, 255)"; // trượt - xanh nhạt
-          } else if (a === 0) {
-            td.style.backgroundColor = "rgba(200, 0, 40, 1)"; // trúng - đỏ đậm
-            td.style.color = "white";
-          } else if (a > 0) {
-            // Gradient cho xác suất
-            const norm = (a - minA) / range;
-            const r = 255;
-            const g = Math.round(220 * (1 - norm));
-            const b = Math.round(220 * (1 - norm));
-            td.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
-            td.style.color = norm > 0.6 ? "white" : "black";
-          } else {
-            td.style.backgroundColor = "white";
-          }
-
-          td.textContent = a.toFixed(1);
-        });
-      })
-      .catch(err => console.error("Render matrix error:", err));
-    }
+  if (data.prob_matrix) {
+    renderAiBoard(data.ai_name, data.prob_matrix);
   }
 });
+
+function renderAiBoard(aiName, matrix) {
+  fetch("/render_matrix", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      matrix: matrix,
+      heatmap: true
+    })
+  })
+  .then(res => res.text()) // chuyển phản hồi thành text HTML
+  .then(html => {
+    // Gắn bảng vào giao diện
+    const titleEl = document.getElementById("aiBoardTitle");
+    const boardEl = document.getElementById("aiBoard");
+    titleEl.style.display = "block";
+    boardEl.style.display = "block";
+    titleEl.textContent = `${aiName}'s Board`;
+    boardEl.innerHTML = html;
+
+    const tdList = document.querySelectorAll('#aiBoard td[data-alpha]');
+    const alphas = Array.from(tdList).map(td => parseFloat(td.dataset.alpha));
+
+    // Loại bỏ ô 0 khi tính min/max
+    const nonZero = alphas.filter(a => a > 0);
+    const minA = Math.min(...nonZero);
+    const maxA = Math.max(...nonZero);
+    const range = Math.max(maxA - minA, 1e-6); // tránh chia cho 0
+
+    tdList.forEach(td => {
+      const a = parseFloat(td.dataset.alpha);
+
+      if (a < 0) {
+        td.style.backgroundColor = "rgb(150, 200, 255)"; // trượt - xanh nhạt
+      } else if (a === 0) {
+        td.style.backgroundColor = "rgba(200, 0, 40, 1)"; // trúng - đỏ đậm
+        td.style.color = "white";
+      } else if (a > 0) {
+        // Gradient cho xác suất
+        const norm = (a - minA) / range;
+        const r = 255;
+        const g = Math.round(220 * (1 - norm));
+        const b = Math.round(220 * (1 - norm));
+        td.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+        td.style.color = norm > 0.6 ? "white" : "black";
+      } else {
+        td.style.backgroundColor = "white";
+      }
+
+      td.textContent = a.toFixed(1);
+    });
+  })
+  .catch(err => console.error("Render matrix error:", err));
+}
+
+function toggleAiPanel() {
+  const content = document.getElementById("aiContent");
+  const btn = document.getElementById("btnToggleAi");
+  if (content.style.display === "none") {
+    content.style.display = "flex";
+    btn.textContent = "Thu gọn";
+  } else {
+    content.style.display = "none";
+    btn.textContent = "Mở rộng";
+  }
+}
+
+function togglePause() {
+  if (!isPaused) {
+    socket.emit("pause_game", { game_id: gameId });
+  } else {
+    socket.emit("resume_game", { game_id: gameId });
+  }
+}
+
+socket.on("game_paused", () => {
+  isPaused = true;
+  document.getElementById("btnPause").textContent = "Tiếp tục";
+  document.getElementById("status").textContent = "Game đang tạm dừng - Có thể Undo/Redo";
+  
+  // Mở khóa undo/redo
+  document.getElementById("btnUndo").disabled = false;
+  document.getElementById("btnRedo").disabled = false;
+  
+  // Khóa bảng
+  disableOpponentBoard(true);
+});
+
+socket.on("game_resumed", () => {
+  isPaused = false;
+  document.getElementById("btnPause").textContent = "Tạm dừng";
+  
+  // Khóa undo/redo
+  document.getElementById("btnUndo").disabled = true;
+  document.getElementById("btnRedo").disabled = true;
+  
+  // Khôi phục trạng thái bảng dựa trên lượt
+  if (currentTurn === playerName) {
+      document.getElementById("status").textContent = "Đến lượt bạn!";
+      disableOpponentBoard(false);
+  }
+});
+
+function requestUndo() {
+  socket.emit("undo_move", { game_id: gameId });
+}
+
+function requestRedo() {
+  socket.emit("redo_move", { game_id: gameId });
+}
+
+socket.on("board_updated", (data) => {
+  if (data.owner === playerName) {
+      // Nếu bảng của mình bị thay đổi (do mình bị bắn và undo lại)
+      makeBoard(playerBoard, data.board, false, false);
+  } else {
+      // Nếu bảng đối thủ bị thay đổi (do mình bắn và undo lại)
+      // hideShips=true để đảm bảo không lộ tàu khi nhận dữ liệu raw
+      makeBoard(opponentBoard, data.board, false, true);
+  }
+});
+
 </script>
 {% endblock %}
-

@@ -159,6 +159,9 @@ def handle_fire(data):
     if not game:
         return emit("error", {"message": "Game không tồn tại"}, to=request.sid)
 
+    if game.status == "paused":
+        return emit("error", {"message": "Game đang tạm dừng!"}, to=request.sid)
+
     # Kiểm tra lượt
     if game.current_turn != player_name:
         return emit("error", {"message": "Chưa đến lượt bạn!"}, to=request.sid)
@@ -199,6 +202,9 @@ def handle_ai_make_shot(data):
     if not game or not game.ai:
         return emit("error", {"message": "Không tìm thấy AI!"}, to=request.sid)
 
+    if game.status == "paused":
+        return
+
     ai = get_ai_instance(game)
     print(f"[DEBUG] AI {ai.name} bắt đầu bắn...")
 
@@ -211,3 +217,73 @@ def handle_ai_make_shot(data):
     db.session.commit()
 
     process_shot_result(game, result_data, game.ai.name, game.player.playername)
+
+
+@socketio.on("undo_move")
+def handle_undo_move(data):
+    game_id = data.get("game_id")
+    game = db.session.get(Game, game_id)
+    if not game:
+        return
+    
+    if game.status != "paused":
+        return emit("error", {"message": "Vui lòng tạm dừng game trước khi Undo!"}, to=request.sid)
+
+    logic = GameLogic(game)
+    undo_data = logic.undo_last_move()
+    
+    if undo_data:
+        socketio.emit("board_updated", {
+            "game_id": game_id,
+            "owner": undo_data["target"],
+            "board": undo_data["board"]
+        }, to=str(game.id))
+        socketio.emit("turn_change", {
+            "current_turn": game.current_turn,
+            "is_ai_turn": (game.ai and game.current_turn == game.ai.name)
+        }, to=str(game.id))
+
+@socketio.on("redo_move")
+def handle_redo(data):
+    from app.socket_helpers import process_shot_result
+    game_id = data.get("game_id")
+    game = db.session.get(Game, game_id)
+    if not game: return
+
+    if game.status != "paused":
+        return emit("error", {"message": "Vui lòng tạm dừng game trước khi Redo!"}, to=request.sid)
+
+    logic = GameLogic(game)
+    result_data = logic.redo_last_move()
+    
+    if result_data:
+        process_shot_result(
+            game, 
+            result_data, 
+            result_data["attacker"], 
+            result_data["target"]
+        )
+
+@socketio.on("pause_game")
+def handle_pause(data):
+    game_id = data.get("game_id")
+    game = db.session.get(Game, game_id)
+    if game and game.status == "battle":
+        game.status = "paused"
+        db.session.commit()
+        socketio.emit("game_paused", {"game_id": game.id}, to=str(game.id))
+
+@socketio.on("resume_game")
+def handle_resume(data):
+    game_id = data.get("game_id")
+    game = db.session.get(Game, game_id)
+    if game and game.status == "paused":
+        game.status = "battle"
+        db.session.commit()
+        socketio.emit("game_resumed", {"game_id": game.id}, to=str(game.id))
+        
+        # Nếu đến lượt ai thì ai bắn tiếp
+        socketio.emit("turn_change", {
+            "current_turn": game.current_turn,
+            "is_ai_turn": (game.ai and game.current_turn == game.ai.name)
+        }, to=str(game.id))

@@ -205,3 +205,21 @@ class ShipPlacement(db.Model):
     game: so.Mapped["Game"] = so.relationship(backref="ship_placements")   
     
 
+#Bảng lưu lịch sử game đấu
+class GameMove(db.Model):
+    id: so.Mapped[int] = so.mapped_column(primary_key=True)
+    game_id: so.Mapped[int] = so.mapped_column(db.ForeignKey("game.id"))
+    
+    attacker_name: so.Mapped[str] = so.mapped_column(db.String(32))
+    target_name: so.Mapped[str] = so.mapped_column(db.String(32))
+    x: so.Mapped[int] = so.mapped_column(sa.Integer)
+    y: so.Mapped[int] = so.mapped_column(sa.Integer)
+    result: so.Mapped[str] = so.mapped_column(db.String(16))
+    game_turn: so.Mapped[str] = so.mapped_column(db.String(32))
+    
+    
+    prev_cell: so.Mapped[int] = so.mapped_column(sa.Integer)
+    sunk_ship_name: so.Mapped[Optional[str]] = so.mapped_column(db.String(32), nullable=True)
+    is_reverted: so.Mapped[bool] = so.mapped_column(default=False)
+
+    game: so.Mapped["Game"] = so.relationship(backref="moves")
