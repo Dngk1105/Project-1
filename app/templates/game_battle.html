@@ -20,25 +20,24 @@
     <table id="opponentBoard"></table>
   </div>
 
+  {% if game.ai %}
+  <div id="aiPanel" style="min-width:300px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+      <h3 style="margin: 0;">Hoạt động của AI</h3>
+    </div>
+    <button onclick="toggleAiPanel()" id="btnToggleAi" style="padding: 2px 8px; cursor: pointer;">Thu gọn</button>
+    <div id="aiContent" style="display: flex; gap: 15px;">
+      <div id="aiLogs" style="flex: 1; max-width: 400px; height:350px; overflow-y:auto; border:1px solid gray; padding:5px; background:#fafafa;"></div>
+      <div>
+        <h4 id="aiBoardTitle" style="display: none; margin-top: 0;"></h4>
+        <div id="aiBoard" style="display: none;"></div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
 </div>
 
 <p id="status"></p>
-
-{% if game.ai %}
-<div id="aiPanel" style="min-width:300px;">
-  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-    <h3 style="margin: 0;">Hoạt động của AI</h3>
-  </div>
-  <button onclick="toggleAiPanel()" id="btnToggleAi" style="padding: 2px 8px; cursor: pointer;">Thu gọn</button>
-  <div id="aiContent" style="display: flex; gap: 15px;">
-    <div id="aiLogs" style="flex: 1; max-width: 400px; height:350px; overflow-y:auto; border:1px solid gray; padding:5px; background:#fafafa;"></div>
-    <div>
-      <h4 id="aiBoardTitle" style="display: none; margin-top: 0;"></h4>
-      <div id="aiBoard" style="display: none;"></div>
-    </div>
-  </div>
-</div>
-{% endif %}
 
 
 
