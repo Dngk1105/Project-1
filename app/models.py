@@ -178,19 +178,21 @@ class Game(db.Model):
 
     @property
     def history_logs(self):
-        valid_moves = [m for m in self.moves if not m.is_reverted]
-        valid_moves.sort(key=lambda m: m.id)
+        moves_list = [m for m in self.moves]
+        moves_list.sort(key=lambda m: m.id)
 
         logs = []
-        for idx, move in enumerate(valid_moves, 1):
+        for idx, move in enumerate(moves_list, 1):
             logs.append({
+                "id": move.id,
                 "turn": idx,
                 "attacker_name": move.attacker_name,
                 "target_name": move.target_name,
                 "x": move.x,
                 "y": move.y,
                 "result": move.result,
-                "game_turn": move.game_turn
+                "game_turn": move.game_turn,
+                "sunk_ship_name": move.sunk_ship_name
             })
         
         logs.sort(key=lambda x: x["turn"], reverse=False)

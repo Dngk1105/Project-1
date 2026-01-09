@@ -354,7 +354,8 @@ def game_battle(game_id):
         opponent_name=opponent_name,
         player_board=json.dumps(player_board),
         opponent_board=json.dumps(opponent_board),
-        is_host=is_host
+        is_host=is_host,
+        logs=game.history_logs
     )
     
     

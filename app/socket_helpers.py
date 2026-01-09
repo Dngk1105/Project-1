@@ -11,6 +11,7 @@ def process_shot_result(game, result_data, attacker_name, target_name, x = None,
         "x": x if x is not None else result_data.get("x"),
         "y": y if y is not None else result_data.get("y"),
         "result": result_data["result"],
+        "move_id": result_data.get("move_id"),
         "attacker": attacker_name,
         "target": target_name,
     }, to=str(game.id))

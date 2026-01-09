@@ -264,6 +264,29 @@ def handle_redo(data):
             result_data["target"]
         )
 
+@socketio.on("jump_to_turn")
+def handle_jump_to_turn(data):
+    game_id = data.get("game_id")
+    target_move_id = data.get("move_id")
+    
+    game = db.session.get(Game, game_id)
+    if not game: return
+
+    if game.status != "paused":
+        return emit("error", {"message": "Vui lòng tạm dừng game trước khi chọn lượt!"}, to=request.sid)
+
+    logic = GameLogic(game)
+    result = logic.jump_to_turn(target_move_id)
+    
+    # Cập nhật lại toàn bộ bàn cờ cho cả 2 bên
+    socketio.emit("full_board_sync", {
+        "game_id": game.id,
+        "player_board": result["player_board"],
+        "opponent_board": result["opponent_board"],
+        "current_turn": result["current_turn"],
+        "active_move_id": target_move_id # Gửi lại ID để frontend highlight
+    }, to=str(game.id))
+
 @socketio.on("pause_game")
 def handle_pause(data):
     game_id = data.get("game_id")
