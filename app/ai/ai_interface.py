@@ -36,8 +36,9 @@ class BaseAI(ShipPlacementStrategy, AIInterface, ABC):
         super().__init__(game)
         self.game = game
         self.name = name or (game.ai.name if game.ai else "AI bot")
+        self.delay = getattr(game, 'ai_delay', 1.0)
         
-    def log_action(self, message: str, **kwargs):
+    def log_action(self, message: str, delay: float = 0.1, **kwargs):
         """
         Gửi log hành động của AI tới client qua socket.
 
@@ -56,6 +57,10 @@ class BaseAI(ShipPlacementStrategy, AIInterface, ABC):
             data[key] = value
 
         socketio.emit("ai_log_update", data, to=str(self.game.id))
+        
+        if delay > 0: 
+            socketio.sleep(delay)
+
 
     @abstractmethod
     def place_ships(self):
