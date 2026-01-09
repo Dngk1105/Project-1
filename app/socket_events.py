@@ -236,7 +236,8 @@ def handle_undo_move(data):
         socketio.emit("board_updated", {
             "game_id": game_id,
             "owner": undo_data["target"],
-            "board": undo_data["board"]
+            "board": undo_data["board"],
+            "current_move_id": undo_data["current_move_id"]
         }, to=str(game.id))
         socketio.emit("turn_change", {
             "current_turn": game.current_turn,

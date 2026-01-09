@@ -14,6 +14,7 @@ def process_shot_result(game, result_data, attacker_name, target_name, x = None,
         "move_id": result_data.get("move_id"),
         "attacker": attacker_name,
         "target": target_name,
+        "logs": game.history_logs
     }, to=str(game.id))
 
     #  Nếu có tàu bị chìm

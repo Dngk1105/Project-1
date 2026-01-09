@@ -168,15 +168,8 @@ const logsContainer = document.getElementById("battleLogs");
 function renderLogs() {
   logsContainer.innerHTML = "";
   
-  // Thêm mục "Khởi đầu" (Move ID = 0)
-  const startDiv = document.createElement("div");
-  startDiv.className = "log-entry";
-  startDiv.textContent = "--- Bắt đầu trận đấu ---";
-  startDiv.onclick = () => requestJumpToTurn(0);
-  if (currentActiveMoveId === 0 || currentActiveMoveId === null) startDiv.classList.add("active");
-  logsContainer.appendChild(startDiv);
-
-  allLogs.forEach(log => {
+  // Hiển thị dạng Stack (Mới nhất lên đầu)
+  [...allLogs].reverse().forEach(log => {
     const div = document.createElement("div");
     div.className = `log-entry ${log.id === currentActiveMoveId ? 'active' : ''}`;
     
@@ -192,8 +185,16 @@ function renderLogs() {
     logsContainer.appendChild(div);
   });
   
-  // Auto scroll xuống dưới cùng
-  logsContainer.scrollTop = logsContainer.scrollHeight;
+  // Thêm mục "Khởi đầu" (Move ID = 0) ở dưới cùng
+  const startDiv = document.createElement("div");
+  startDiv.className = "log-entry";
+  startDiv.textContent = "--- Bắt đầu trận đấu ---";
+  startDiv.onclick = () => requestJumpToTurn(0);
+  if (currentActiveMoveId === 0 || currentActiveMoveId === null) startDiv.classList.add("active");
+  logsContainer.appendChild(startDiv);
+  
+  // Scroll lên đầu để thấy tin mới nhất
+  logsContainer.scrollTop = 0;
 }
 
 function getColor(result) {
@@ -217,7 +218,7 @@ socket.on("error", (data) => {
 
 // Nhận kết quả bắn
 socket.on("shot_result", (data) => {
-    const { x, y, result, attacker, target, move_id } = data;
+    const { x, y, result, attacker, target, move_id, logs } = data;
 
     // Nếu server gửi attacker/target, xác định bản đồ cần cập nhật:
     // - Nếu tôi là target -> update playerBoard
@@ -242,13 +243,8 @@ socket.on("shot_result", (data) => {
       else if (result === "sunk") document.getElementById("status").textContent = "Địch đánh chìm tàu bạn!";
     }
 
-    // Cập nhật Logs
-    const newLog = {
-        id: move_id,
-        turn: allLogs.length + 1,
-        attacker_name: attacker, target_name: target, x, y, result
-    };
-    allLogs.push(newLog);
+    // Cập nhật Logs từ Database
+    allLogs = logs;
     currentActiveMoveId = move_id;
     renderLogs();
 });
@@ -480,6 +476,13 @@ socket.on("board_updated", (data) => {
   } else {
       // Nếu bảng đối thủ bị thay đổi (do mình bắn và undo lại)
       makeBoard(opponentBoard, data.board, false, true);
+  }
+
+  // Cập nhật highlight logs khi Undo
+  if (data.current_move_id !== undefined) {
+      currentActiveMoveId = data.current_move_id;
+      renderLogs();
+      document.getElementById("status").textContent = `Đã hoàn tác về lượt #${currentActiveMoveId}`;
   }
 });
 
