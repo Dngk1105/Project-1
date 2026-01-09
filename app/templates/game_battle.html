@@ -40,7 +40,6 @@
 <p id="status"></p>
 
 
-
 <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 <script>
 const socket = io();
@@ -130,7 +129,7 @@ function fireAt(x, y) {
     const cell = opponentBoard.querySelector(`[data-x="${x}"][data-y="${y}"]`);
     if (!cell || cell.classList.contains("fired")) return;
 
-    // tạm khóa click trong khi chờ server phản hồi
+    // tạm khóa click trong khi chờ server phản hồi 
     disableOpponentBoard(true);
     cell.classList.add("fired");
     cell.style.cursor = "not-allowed";
@@ -138,6 +137,11 @@ function fireAt(x, y) {
 
     socket.emit("player_fire", { game_id: gameId, player: playerName, x, y });
 }
+
+socket.on("error", (data) => {
+    document.getElementById("status").textContent = data.message;
+});
+
 
 // Nhận kết quả bắn
 socket.on("shot_result", (data) => {
@@ -393,7 +397,6 @@ socket.on("board_updated", (data) => {
       makeBoard(playerBoard, data.board, false, false);
   } else {
       // Nếu bảng đối thủ bị thay đổi (do mình bắn và undo lại)
-      // hideShips=true để đảm bảo không lộ tàu khi nhận dữ liệu raw
       makeBoard(opponentBoard, data.board, false, true);
   }
 });

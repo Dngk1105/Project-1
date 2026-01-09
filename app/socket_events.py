@@ -268,6 +268,10 @@ def handle_redo(data):
 def handle_pause(data):
     game_id = data.get("game_id")
     game = db.session.get(Game, game_id)
+    
+    if game and game.current_turn != current_user.playername:
+        return emit("error", {"message": "Chỉ được dừng game khi đến lượt của mình!"}, to=request.sid)
+
     if game and game.status == "battle":
         game.status = "paused"
         db.session.commit()
