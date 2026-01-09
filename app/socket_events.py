@@ -246,7 +246,6 @@ def handle_undo_move(data):
 
 @socketio.on("redo_move")
 def handle_redo(data):
-    from app.socket_helpers import process_shot_result
     game_id = data.get("game_id")
     game = db.session.get(Game, game_id)
     if not game: return
@@ -255,15 +254,19 @@ def handle_redo(data):
         return emit("error", {"message": "Vui lòng tạm dừng game trước khi Redo!"}, to=request.sid)
 
     logic = GameLogic(game)
-    result_data = logic.redo_last_move()
+    redo_data = logic.redo_last_move()
     
-    if result_data:
-        process_shot_result(
-            game, 
-            result_data, 
-            result_data["attacker"], 
-            result_data["target"]
-        )
+    if redo_data:
+        socketio.emit("board_updated", {
+            "game_id": game_id,
+            "owner": redo_data["target"],
+            "board": redo_data["board"],
+            "current_move_id": redo_data["current_move_id"]
+        }, to=str(game.id))
+        socketio.emit("turn_change", {
+            "current_turn": game.current_turn,
+            "is_ai_turn": (game.ai and game.current_turn == game.ai.name)
+        }, to=str(game.id))
 
 @socketio.on("jump_to_turn")
 def handle_jump_to_turn(data):

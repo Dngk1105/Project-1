@@ -457,7 +457,6 @@ class GameLogic:
             return None
 
         board = self.get_board(next_move.target_name)
-        comp = None
         
         if next_move.result == "miss":
             board[next_move.x][next_move.y] = 3
@@ -479,7 +478,6 @@ class GameLogic:
                 placement.ship_data = json.dumps(ship_data)
                 
                 positions = ship_data[next_move.sunk_ship_name]["positions"]
-                comp = positions
                 for px, py in positions:
                     board[px][py] = 4            
             self.game.current_turn = next_move.attacker_name
@@ -494,17 +492,12 @@ class GameLogic:
         self.save_board(next_move.target_name, board)
         db.session.commit()
 
-        # return để gọi process_shot_result
+        # return giống undo_last_move
         return {
-            "result": next_move.result,
             "attacker": next_move.attacker_name,
             "target": next_move.target_name,
-            "x": next_move.x,
-            "y": next_move.y,
-            "winner": self.game.winner if self.game.status == "finished" else None,
-            "owner": next_move.target_name,
-            "ship_name": next_move.sunk_ship_name,
-            "comp": comp
+            "board": board,
+            "current_move_id": next_move.id
         }
         
     def jump_to_turn(self, target_move_id):
