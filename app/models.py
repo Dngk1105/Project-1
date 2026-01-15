@@ -176,6 +176,28 @@ class Game(db.Model):
         foreign_keys=[ai_id]
     )
 
+    @property
+    def history_logs(self):
+        moves_list = [m for m in self.moves]
+        moves_list.sort(key=lambda m: m.id)
+
+        logs = []
+        for idx, move in enumerate(moves_list, 1):
+            logs.append({
+                "id": move.id,
+                "turn": idx,
+                "attacker_name": move.attacker_name,
+                "target_name": move.target_name,
+                "x": move.x,
+                "y": move.y,
+                "result": move.result,
+                "game_turn": move.game_turn,
+                "sunk_ship_name": move.sunk_ship_name
+            })
+        
+        logs.sort(key=lambda x: x["turn"], reverse=False)
+        
+        return logs
 
     def __repr__(self):
         return f"<Game {self.id} winner={self.winner} status={self.status}>"    

@@ -319,7 +319,8 @@ class GameLogic:
                 "ship_name": ship_name, 
                 "comp": comp,
                 "x": x,
-                "y": y
+                "y": y,
+                "move_id": game_move.id
             }
 
         print(f"[DEBUG] Kết quả phát bắn: {result}")
@@ -331,14 +332,16 @@ class GameLogic:
                 "ship_name": ship_name,
                 "comp": comp,
                 "x": x,
-                "y": y
+                "y": y,
+                "move_id": game_move.id
             }
         else: 
             return {
                 "result": result, 
                 "winner": None,
                 "x": x,
-                "y": y
+                "y": y,
+                "move_id": game_move.id
             }
 
 
@@ -425,10 +428,20 @@ class GameLogic:
             print(f"[DEBUG] LỖI khi commit: {e}")
             db.session.rollback()
 
+        # Lấy ID của nước đi hiện tại (sau khi undo) để frontend highlight đúng log
+        new_last_move = db.session.scalar(
+            sa.select(GameMove)
+            .where(GameMove.game_id == self.game.id, GameMove.is_reverted == False)
+            .order_by(GameMove.id.desc())
+            .limit(1)
+        )
+        current_move_id = new_last_move.id if new_last_move else 0
+
         return {
             "attacker": last_move.attacker_name, 
             "target": last_move.target_name,
-            "board": board
+            "board": board,
+            "current_move_id": current_move_id
         }
     
     def redo_last_move(self):
@@ -444,7 +457,6 @@ class GameLogic:
             return None
 
         board = self.get_board(next_move.target_name)
-        comp = None
         
         if next_move.result == "miss":
             board[next_move.x][next_move.y] = 3
@@ -466,7 +478,6 @@ class GameLogic:
                 placement.ship_data = json.dumps(ship_data)
                 
                 positions = ship_data[next_move.sunk_ship_name]["positions"]
-                comp = positions
                 for px, py in positions:
                     board[px][py] = 4            
             self.game.current_turn = next_move.attacker_name
@@ -481,17 +492,64 @@ class GameLogic:
         self.save_board(next_move.target_name, board)
         db.session.commit()
 
-        # return để gọi process_shot_result
+        # return giống undo_last_move
         return {
-            "result": next_move.result,
             "attacker": next_move.attacker_name,
             "target": next_move.target_name,
-            "x": next_move.x,
-            "y": next_move.y,
-            "winner": self.game.winner if self.game.status == "finished" else None,
-            "owner": next_move.target_name,
-            "ship_name": next_move.sunk_ship_name,
-            "comp": comp
+            "board": board,
+            "current_move_id": next_move.id
+        }
+        
+    def jump_to_turn(self, target_move_id):
+        """
+        Nhảy tới trạng thái game tại thời điểm move_id (Undo/Redo liên tục)
+        """
+        print(f"[DEBUG] Jump to turn ID: {target_move_id}")
+        
+        # Xác định move hiện tại (move cuối cùng chưa bị revert)
+        current_last_move = db.session.scalar(
+            sa.select(GameMove)
+            .where(GameMove.game_id == self.game.id, GameMove.is_reverted == False)
+            .order_by(GameMove.id.desc())
+            .limit(1)
+        )
+        
+        current_id = current_last_move.id if current_last_move else 0
+        target_id = int(target_move_id)
+
+        # Nếu target < current -> Cần Undo ngược về quá khứ
+        if target_id < current_id:
+            while True:
+                # Lấy move sắp undo
+                move_to_undo = db.session.scalar(
+                    sa.select(GameMove)
+                    .where(GameMove.game_id == self.game.id, GameMove.is_reverted == False)
+                    .order_by(GameMove.id.desc())
+                    .limit(1)
+                )
+                if not move_to_undo or move_to_undo.id <= target_id:
+                    break
+                self.undo_last_move()
+
+        # Nếu target > current -> Cần Redo tiến tới tương lai
+        elif target_id > current_id:
+            while True:
+                # Lấy move sắp redo (move revert có id nhỏ nhất)
+                move_to_redo = db.session.scalar(
+                    sa.select(GameMove)
+                    .where(GameMove.game_id == self.game.id, GameMove.is_reverted == True)
+                    .order_by(GameMove.id.asc())
+                    .limit(1)
+                )
+                if not move_to_redo or move_to_redo.id > target_id:
+                    break
+                self.redo_last_move()
+        
+        # Trả về trạng thái 2 bảng sau khi jump
+        return {
+            "player_board": self.get_board(self.game.player.playername),
+            "opponent_board": self.get_board(self.game.opponent.playername if self.game.opponent else self.game.ai.name),
+            "current_turn": self.game.current_turn
         }
 
     # --------------------------- Không phải hàm chính ---------------------------

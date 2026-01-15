@@ -9,7 +9,7 @@
   <button id="btnRedo" onclick="requestRedo()" disabled>Redo (Làm lại)</button>
 </div>
 
-<div style="display:flex;gap:50px;">
+<div style="display:flex; gap:20px;">
   <div>
     <h3>Bảng của bạn</h3>
     <table id="playerBoard"></table>
@@ -18,6 +18,12 @@
   <div>
     <h3>Bảng của {{ opponent_name }}</h3>
     <table id="opponentBoard"></table>
+  </div>
+
+  <!-- Khu vực Logs -->
+  <div style="min-width: 250px; border-left: 1px solid #ccc; padding-left: 10px;">
+    <h3>Nhật ký bắn</h3>
+    <div id="battleLogs" style="height: 400px; overflow-y: auto; border: 1px solid #ddd; background: #fff;"></div>
   </div>
 
   {% if game.ai %}
@@ -40,6 +46,22 @@
 <p id="status"></p>
 
 
+<style>
+  .log-entry {
+    padding: 5px;
+    border-bottom: 1px solid #eee;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .log-entry:hover {
+    background-color: #f0f0f0;
+  }
+  .log-entry.active {
+    background-color: #d1e7dd;
+    font-weight: bold;
+  }
+</style>
+
 <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 <script>
 const socket = io();
@@ -48,6 +70,8 @@ const playerName = "{{ player_name }}";
 const isHost = "{{ is_host }}".toLowerCase() === "true";
 const opponentName = "{{ opponent_name }}";
 let currentTurn = "{{ game.current_turn }}";
+let currentActiveMoveId = null; // ID của nước đi hiện tại
+let allLogs = {{ logs | tojson }}; // Logs ban đầu từ server
 let isPaused = false;
 
 socket.emit("join_room", { room: gameId });
@@ -138,6 +162,55 @@ function fireAt(x, y) {
     socket.emit("player_fire", { game_id: gameId, player: playerName, x, y });
 }
 
+// --- LOGIC LOGS ---
+const logsContainer = document.getElementById("battleLogs");
+
+function renderLogs() {
+  logsContainer.innerHTML = "";
+  
+  // Hiển thị dạng Stack (Mới nhất lên đầu)
+  [...allLogs].reverse().forEach(log => {
+    const div = document.createElement("div");
+    div.className = `log-entry ${log.id === currentActiveMoveId ? 'active' : ''}`;
+    
+    // Format text: "Turn 1: A bắn B (x,y) -> Miss"
+    let resultText = log.result;
+    if (resultText === 'hit') resultText = 'Trúng';
+    else if (resultText === 'miss') resultText = 'Trượt';
+    else if (resultText === 'sunk') resultText = 'Chìm';
+
+    div.innerHTML = `<b>#${log.turn}</b>: ${log.attacker_name} bắn (${log.x},${log.y}) <br> -> <span style="color:${getColor(log.result)}">${resultText}</span>`;
+    
+    div.onclick = () => requestJumpToTurn(log.id);
+    logsContainer.appendChild(div);
+  });
+  
+  // Thêm mục "Khởi đầu" (Move ID = 0) ở dưới cùng
+  const startDiv = document.createElement("div");
+  startDiv.className = "log-entry";
+  startDiv.textContent = "--- Bắt đầu trận đấu ---";
+  startDiv.onclick = () => requestJumpToTurn(0);
+  if (currentActiveMoveId === 0 || currentActiveMoveId === null) startDiv.classList.add("active");
+  logsContainer.appendChild(startDiv);
+  
+  // Scroll lên đầu để thấy tin mới nhất
+  logsContainer.scrollTop = 0;
+}
+
+function getColor(result) {
+    if (result === 'hit') return 'tomato';
+    if (result === 'sunk') return 'crimson';
+    return 'gray';
+}
+
+function requestJumpToTurn(moveId) {
+    if (!isPaused) {
+        document.getElementById("status").textContent = "Vui lòng Tạm dừng game trước khi xem lại lịch sử!";
+        return;
+    }
+    socket.emit("jump_to_turn", { game_id: gameId, move_id: moveId });
+}
+
 socket.on("error", (data) => {
     document.getElementById("status").textContent = data.message;
 });
@@ -145,7 +218,7 @@ socket.on("error", (data) => {
 
 // Nhận kết quả bắn
 socket.on("shot_result", (data) => {
-    const { x, y, result, attacker, target} = data;
+    const { x, y, result, attacker, target, move_id, logs } = data;
 
     // Nếu server gửi attacker/target, xác định bản đồ cần cập nhật:
     // - Nếu tôi là target -> update playerBoard
@@ -169,6 +242,11 @@ socket.on("shot_result", (data) => {
       else if (result === "miss") document.getElementById("status").textContent = "Địch bắn hụt!";
       else if (result === "sunk") document.getElementById("status").textContent = "Địch đánh chìm tàu bạn!";
     }
+
+    // Cập nhật Logs từ Database
+    allLogs = logs;
+    currentActiveMoveId = move_id;
+    renderLogs();
 });
 
 //tàu chìm thì tô lại các ô trong comp
@@ -399,7 +477,37 @@ socket.on("board_updated", (data) => {
       // Nếu bảng đối thủ bị thay đổi (do mình bắn và undo lại)
       makeBoard(opponentBoard, data.board, false, true);
   }
+
+  // Cập nhật highlight logs khi Undo
+  if (data.current_move_id !== undefined) {
+      currentActiveMoveId = data.current_move_id;
+      renderLogs();
+      document.getElementById("status").textContent = `Đã hoàn tác về lượt #${currentActiveMoveId}`;
+  }
 });
+
+// Sự kiện đồng bộ toàn bộ bàn cờ (khi Jump to turn)
+socket.on("full_board_sync", (data) => {
+    if (data.game_id == gameId) {
+        // Cập nhật bàn cờ
+        if (data.player_board) makeBoard(playerBoard, data.player_board, false, false);
+        if (data.opponent_board) makeBoard(opponentBoard, data.opponent_board, false, true);
+
+        currentActiveMoveId = data.active_move_id;
+        currentTurn = data.current_turn;
+        renderLogs();
+        
+        document.getElementById("status").textContent = `Đã chuyển về trạng thái lượt #${data.active_move_id || 0}`;
+    }
+});
+
+// Khởi chạy logs lần đầu
+if (allLogs.length > 0) {
+    currentActiveMoveId = allLogs[allLogs.length - 1].id;
+} else {
+    currentActiveMoveId = 0;
+}
+renderLogs();
 
 </script>
 {% endblock %}

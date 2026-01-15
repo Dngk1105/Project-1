@@ -53,6 +53,30 @@
             </li>
         </ul>
 
+        <div class="card">
+            <div class="card-header">Lịch sử đấu</div>
+            <ul class="list-group list-group-flush" style="max-height: 400px; overflow-y: auto;">
+                {% for log in game.history_logs %}
+                    <li class="list-group-item">
+                        <strong>Lượt {{ log.turn }}:</strong> 
+                        <br>
+                        <span class="text-primary">{{ log.attacker_name }}</span> 
+                        đã bắn vào ô ({{log.x}}; {{log.y}})
+                        
+                        {% if log.result == 'miss' %}
+                            <span class="badge bg-secondary">{{ log.result }}</span>
+                        {% elif log.result == 'hit' %}
+                            <span class="badge bg-warning text-dark">{{ log.result }}</span>
+                        {% elif log.result == 'sunk' %}
+                            <span class="badge bg-danger">{{ log.result }}</span>
+                        {% endif %}
+                    </li>
+                {% else %}
+                    <li class="list-group-item text-muted">Chưa có nước đi nào.</li>
+                {% endfor %}
+            </ul>
+        </div>
+
         <hr>
 
         <h3>Ma trận</h3>
