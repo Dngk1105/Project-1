@@ -205,7 +205,7 @@ function getColor(result) {
 
 function requestJumpToTurn(moveId) {
     if (!isPaused) {
-        alert("Vui lòng Tạm dừng game trước khi xem lại lịch sử!");
+        document.getElementById("status").textContent = "Vui lòng Tạm dừng game trước khi xem lại lịch sử!";
         return;
     }
     socket.emit("jump_to_turn", { game_id: gameId, move_id: moveId });

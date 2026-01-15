@@ -219,6 +219,8 @@ def handle_ai_make_shot(data):
     process_shot_result(game, result_data, game.ai.name, game.player.playername)
 
 
+
+# UNDO / REDO
 @socketio.on("undo_move")
 def handle_undo_move(data):
     game_id = data.get("game_id")
